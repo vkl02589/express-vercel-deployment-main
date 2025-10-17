@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập</title>
+    <style>
+        /* Copy toàn bộ CSS từ giao diện đăng nhập tôi gửi trước đó */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        /* ... tiếp tục các style khác ... */
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo">
+                <h1>Welcome Back</h1>
+                <p>Đăng nhập để tiếp tục</p>
+            </div>
+
+            <% if (typeof error !== 'undefined') { %>
+                <div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+                    <%= error %>
+                </div>
+            <% } %>
+
+            <form action="/login" method="POST">
+                <div class="input-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username"
+                        placeholder="Nhập tên đăng nhập hoặc email"
+                        required>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Mật khẩu</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password"
+                        placeholder="Nhập mật khẩu"
+                        required>
+                </div>
+
+                <button type="submit" class="login-btn">
+                    Đăng Nhập
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="/" style="color: #667eea; text-decoration: none;">← Quay lại trang chủ</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,158 +1,100 @@
 const express = require("express");
 const app = express();
+const session = require('express-session');
+const path = require("path");
 
 const port = process.env.PORT || 8080;
 
-// Route chính - LUÔN hiển thị "Subscribe to khanh" cho mọi người
+// Thiết lập view engine (EJS)
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Hoặc nếu bạn muốn dùng HTML thuần:
+// app.engine('html', require('ejs').renderFile);
+// app.set('view engine', 'html');
+// app.set('views', path.join(__dirname, 'views'));
+
+// Cấu hình session
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false }
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public'))); // Phục vụ file tĩnh
+
+// Middleware để khởi tạo message cho session mới
+app.use((req, res, next) => {
+  if (!req.session.userMessage) {
+    req.session.userMessage = "Subscribe to khanh";
+    req.session.userId = generateUserId();
+  }
+  next();
+});
+
+// Hàm tạo ID ngẫu nhiên cho user
+function generateUserId() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
+// Route chính - hiển thị message theo session
 app.get("/", (req, res) => {
-  res.send("Subscribe to khanh");
+  res.render("index", {
+    userMessage: req.session.userMessage,
+    userId: req.session.userId
+  });
 });
 
-// API endpoint để xem thống kê (chỉ admin xem)
-let updateCount = 0;
-let lastUpdates = [];
-
-app.get("/admin", (req, res) => {
-  const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-      <title>Admin Stats</title>
-      <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          .stat { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
-      </style>
-  </head>
-  <body>
-      <h1>📊 Admin Statistics</h1>
-      <div class="stat">
-          <strong>Tổng số lần cập nhật:</strong> ${updateCount}
-      </div>
-      <div class="stat">
-          <strong>5 lần cập nhật gần nhất:</strong>
-          <ul>
-              ${lastUpdates.map(update => 
-                  `<li>${update.time}: "${update.message}" (IP: ${update.ip})</li>`
-              ).join('')}
-          </ul>
-      </div>
-      <div class="stat">
-          <strong>Public page:</strong> Luôn hiển thị "Subscribe to khanh" cho mọi visitor
-      </div>
-  </body>
-  </html>
-  `;
-  res.send(html);
-});
-
-// API để nhận tin nhắn từ local (chỉ để thống kê, không hiển thị ra public)
-app.post("/api/message", (req, res) => {
+// API để cập nhật message cho session hiện tại
+app.post("/update-message", (req, res) => {
   const { message } = req.body;
-  const clientIP = req.ip || req.connection.remoteAddress;
   
   if (message && message.trim() !== "") {
-    updateCount++;
-    
-    // Lưu lịch sử cập nhật (chỉ 5 cái mới nhất)
-    lastUpdates.unshift({
-      message: message.trim(),
-      time: new Date().toLocaleString(),
-      ip: clientIP
-    });
-    
-    if (lastUpdates.length > 5) {
-      lastUpdates = lastUpdates.slice(0, 5);
-    }
-    
-    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
+    req.session.userMessage = message.trim();
     
     res.json({
       success: true,
-      message: "Message received (but not displayed to public)",
-      receivedMessage: message,
-      totalUpdates: updateCount,
-      timestamp: new Date().toISOString()
+      newMessage: req.session.userMessage,
+      userId: req.session.userId,
+      message: "Cập nhật thành công!"
     });
   } else {
     res.status(400).json({
       success: false,
-      error: "Message cannot be empty"
+      error: "Tin nhắn không được để trống"
     });
   }
 });
 
-// Endpoint để nhận tin nhắn từ form
-app.post("/update", express.urlencoded({ extended: true }), (req, res) => {
-  const { message } = req.body;
-  const clientIP = req.ip || req.connection.remoteAddress;
+// Route đăng nhập
+app.get("/login", (req, res) => {
+  res.render("login");
+});
+
+// Xử lý đăng nhập
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
   
-  if (message && message.trim() !== "") {
-    updateCount++;
-    
-    lastUpdates.unshift({
-      message: message.trim(),
-      time: new Date().toLocaleString(),
-      ip: clientIP
-    });
-    
-    if (lastUpdates.length > 5) {
-      lastUpdates = lastUpdates.slice(0, 5);
-    }
-    
-    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
-    
-    res.json({
-      success: true,
-      message: "Message received (but not displayed to public)",
-      receivedMessage: message,
-      totalUpdates: updateCount,
-      timestamp: new Date().toISOString()
-    });
+  // Xử lý logic đăng nhập ở đây
+  if (username && password) {
+    req.session.isLoggedIn = true;
+    req.session.username = username;
+    res.redirect("/");
   } else {
-    res.status(400).json({
-      success: false,
-      error: "Message cannot be empty"
-    });
+    res.render("login", { error: "Vui lòng điền đầy đủ thông tin!" });
   }
 });
 
-// Endpoint GET để nhận tin nhắn nhanh
-app.get("/update", (req, res) => {
-  const { message } = req.query;
-  const clientIP = req.ip || req.connection.remoteAddress;
-  
-  if (message && message.trim() !== "") {
-    updateCount++;
-    
-    lastUpdates.unshift({
-      message: message.trim(),
-      time: new Date().toLocaleString(),
-      ip: clientIP
-    });
-    
-    if (lastUpdates.length > 5) {
-      lastUpdates = lastUpdates.slice(0, 5);
-    }
-    
-    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
-    
-    res.json({
-      success: true,
-      message: "Message received (but not displayed to public)",
-      receivedMessage: message,
-      totalUpdates: updateCount,
-      timestamp: new Date().toISOString()
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      error: "Message parameter is required"
-    });
-  }
+// Đăng xuất
+app.get("/logout", (req, res) => {
+  req.session.destroy();
+  res.redirect("/login");
 });
 
 app.listen(port, () => {
   console.log(`🚀 Server started on port ${port}`);
-  console.log(`🌐 Public page: http://localhost:${port} (ALWAYS shows "Subscribe to khanh")`);
-  console.log(`📊 Admin stats: http://localhost:${port}/admin`);
+  console.log(`🌐 Truy cập: http://localhost:${port}`);
 });
