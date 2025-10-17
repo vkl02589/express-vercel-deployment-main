@@ -3,110 +3,74 @@ const app = express();
 
 const port = process.env.PORT || 8080;
 
-// Biến toàn cục để lưu nội dung
-let currentMessage = "Subscribe to khanh";
-
-// Middleware để parse JSON
-app.use(express.json());
-
-// Route chính - hiển thị nội dung hiện tại
+// Route chính - LUÔN hiển thị "Subscribe to khanh" cho mọi người
 app.get("/", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Live Message Display</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f0f0f0;
-            }
-            .container {
-                background: white;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                text-align: center;
-            }
-            h1 {
-                color: #333;
-            }
-            .message {
-                font-size: 24px;
-                color: #007bff;
-                margin: 20px 0;
-                padding: 20px;
-                background-color: #f8f9fa;
-                border-radius: 5px;
-                border-left: 4px solid #007bff;
-            }
-            .info {
-                margin-top: 30px;
-                padding: 15px;
-                background-color: #e9ecef;
-                border-radius: 5px;
-                font-size: 14px;
-                text-align: left;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🔴 Live Message Display</h1>
-            <div class="message" id="message">${currentMessage}</div>
-            <div class="info">
-                <h3>📡 Cách sử dụng API:</h3>
-                <p><strong>GET /</strong> - Xem nội dung hiện tại</p>
-                <p><strong>POST /update</strong> - Cập nhật nội dung mới</p>
-                <p><strong>GET /api/message</strong> - Lấy nội dung dạng JSON</p>
-                <p><strong>POST /api/message</strong> - Cập nhật nội dung qua JSON</p>
-                <br>
-                <p><strong>Ví dụ cập nhật từ terminal:</strong></p>
-                <code>curl -X POST http://your-domain.com/update -d "message=Hello World"</code>
-                <br><br>
-                <code>curl -X POST http://your-domain.com/api/message -H "Content-Type: application/json" -d '{"message":"Xin chào"}'</code>
-            </div>
-        </div>
-
-        <script>
-            // Auto refresh mỗi 5 giây để cập nhật nội dung mới
-            setInterval(() => {
-                fetch('/api/message')
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('message').textContent = data.message;
-                    });
-            }, 5000);
-        </script>
-    </body>
-    </html>
-  `);
+  res.send("Subscribe to khanh");
 });
 
-// API để lấy nội dung hiện tại (JSON)
-app.get("/api/message", (req, res) => {
-  res.json({
-    success: true,
-    message: currentMessage,
-    timestamp: new Date().toISOString()
-  });
+// API endpoint để xem thống kê (chỉ admin xem)
+let updateCount = 0;
+let lastUpdates = [];
+
+app.get("/admin", (req, res) => {
+  const html = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <title>Admin Stats</title>
+      <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .stat { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+      </style>
+  </head>
+  <body>
+      <h1>📊 Admin Statistics</h1>
+      <div class="stat">
+          <strong>Tổng số lần cập nhật:</strong> ${updateCount}
+      </div>
+      <div class="stat">
+          <strong>5 lần cập nhật gần nhất:</strong>
+          <ul>
+              ${lastUpdates.map(update => 
+                  `<li>${update.time}: "${update.message}" (IP: ${update.ip})</li>`
+              ).join('')}
+          </ul>
+      </div>
+      <div class="stat">
+          <strong>Public page:</strong> Luôn hiển thị "Subscribe to khanh" cho mọi visitor
+      </div>
+  </body>
+  </html>
+  `;
+  res.send(html);
 });
 
-// API để cập nhật nội dung qua JSON
+// API để nhận tin nhắn từ local (chỉ để thống kê, không hiển thị ra public)
 app.post("/api/message", (req, res) => {
   const { message } = req.body;
+  const clientIP = req.ip || req.connection.remoteAddress;
   
   if (message && message.trim() !== "") {
-    currentMessage = message.trim();
-    console.log(`📢 Message updated: "${currentMessage}" at ${new Date().toLocaleString()}`);
+    updateCount++;
+    
+    // Lưu lịch sử cập nhật (chỉ 5 cái mới nhất)
+    lastUpdates.unshift({
+      message: message.trim(),
+      time: new Date().toLocaleString(),
+      ip: clientIP
+    });
+    
+    if (lastUpdates.length > 5) {
+      lastUpdates = lastUpdates.slice(0, 5);
+    }
+    
+    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
     
     res.json({
       success: true,
-      message: "Message updated successfully",
-      newMessage: currentMessage,
+      message: "Message received (but not displayed to public)",
+      receivedMessage: message,
+      totalUpdates: updateCount,
       timestamp: new Date().toISOString()
     });
   } else {
@@ -117,18 +81,31 @@ app.post("/api/message", (req, res) => {
   }
 });
 
-// Endpoint để cập nhật từ form data
+// Endpoint để nhận tin nhắn từ form
 app.post("/update", express.urlencoded({ extended: true }), (req, res) => {
   const { message } = req.body;
+  const clientIP = req.ip || req.connection.remoteAddress;
   
   if (message && message.trim() !== "") {
-    currentMessage = message.trim();
-    console.log(`📢 Message updated via form: "${currentMessage}" at ${new Date().toLocaleString()}`);
+    updateCount++;
+    
+    lastUpdates.unshift({
+      message: message.trim(),
+      time: new Date().toLocaleString(),
+      ip: clientIP
+    });
+    
+    if (lastUpdates.length > 5) {
+      lastUpdates = lastUpdates.slice(0, 5);
+    }
+    
+    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
     
     res.json({
       success: true,
-      message: "Message updated successfully",
-      newMessage: currentMessage,
+      message: "Message received (but not displayed to public)",
+      receivedMessage: message,
+      totalUpdates: updateCount,
       timestamp: new Date().toISOString()
     });
   } else {
@@ -139,18 +116,31 @@ app.post("/update", express.urlencoded({ extended: true }), (req, res) => {
   }
 });
 
-// Endpoint GET để cập nhật nhanh (cho tiện dụng)
+// Endpoint GET để nhận tin nhắn nhanh
 app.get("/update", (req, res) => {
   const { message } = req.query;
+  const clientIP = req.ip || req.connection.remoteAddress;
   
   if (message && message.trim() !== "") {
-    currentMessage = message.trim();
-    console.log(`📢 Message updated via GET: "${currentMessage}" at ${new Date().toLocaleString()}`);
+    updateCount++;
+    
+    lastUpdates.unshift({
+      message: message.trim(),
+      time: new Date().toLocaleString(),
+      ip: clientIP
+    });
+    
+    if (lastUpdates.length > 5) {
+      lastUpdates = lastUpdates.slice(0, 5);
+    }
+    
+    console.log(`📢 Received message #${updateCount} from ${clientIP}: "${message}"`);
     
     res.json({
       success: true,
-      message: "Message updated successfully",
-      newMessage: currentMessage,
+      message: "Message received (but not displayed to public)",
+      receivedMessage: message,
+      totalUpdates: updateCount,
       timestamp: new Date().toISOString()
     });
   } else {
@@ -163,6 +153,6 @@ app.get("/update", (req, res) => {
 
 app.listen(port, () => {
   console.log(`🚀 Server started on port ${port}`);
-  console.log(`📊 Truy cập: http://localhost:${port}`);
-  console.log(`📝 Current message: "${currentMessage}"`);
+  console.log(`🌐 Public page: http://localhost:${port} (ALWAYS shows "Subscribe to khanh")`);
+  console.log(`📊 Admin stats: http://localhost:${port}/admin`);
 });
